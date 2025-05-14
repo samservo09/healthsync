@@ -1,7 +1,8 @@
-def plot_vital_signs(data):
-    import pandas as pd
-    import altair as alt
+import pandas as pd
+import altair as alt
+import streamlit as st
 
+def plot_vital_signs(data):
     # Convert the data to a DataFrame
     df = pd.DataFrame(data)
 
@@ -14,36 +15,58 @@ def plot_vital_signs(data):
         'SpO2': (95, 100)
     }
 
+    # Convert numeric columns safely
+    for vital in normal_ranges.keys():
+        if vital in df.columns:
+            df[vital] = pd.to_numeric(df[vital], errors='coerce')
+
+    # Convert timestamp if needed
+    if 'timestamp' in df.columns:
+        df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
+
+    # Drop rows with missing timestamps
+    df.dropna(subset=['timestamp'], inplace=True)
+
     # Create a list to hold the charts
     charts = []
 
     # Generate line charts for each vital sign
-    for vital in normal_ranges.keys():
+    for vital, (low, high) in normal_ranges.items():
+        if vital not in df.columns or df[vital].dropna().empty:
+            continue
+
+        # Main line chart
         chart = (
             alt.Chart(df)
             .mark_line()
             .encode(
                 x='timestamp:T',
-                y=f'{vital}:Q',
+                y=alt.Y(f'{vital}:Q', title=vital.replace('_', ' ').capitalize()),
                 tooltip=['timestamp:T', f'{vital}:Q']
             )
             .properties(title=f'{vital.capitalize()} Over Time')
         )
 
         # Highlight out-of-range values
-        out_of_range = df[(df[vital] < normal_ranges[vital][0]) | (df[vital] > normal_ranges[vital][1])]
-        if not out_of_range.empty:
-            chart = chart.mark_point(color='red').encode(
-                opacity=alt.value(1)
-            ).transform_filter(
-                alt.datum[vital] < normal_ranges[vital][0] | alt.datum[vital] > normal_ranges[vital][1]
-            ).add_selection(
-                alt.selection_single(on='mouseover', fields=[f'{vital}:Q'], empty='none')
+        highlight = (
+            alt.Chart(df)
+            .mark_point(color='red', size=60)
+            .encode(
+                x='timestamp:T',
+                y=f'{vital}:Q',
+                tooltip=['timestamp:T', f'{vital}:Q']
             )
+            .transform_filter(
+                (alt.datum[vital] < low) | (alt.datum[vital] > high)
+            )
+        )
 
-        charts.append(chart)
+        # Combine chart and highlight
+        full_chart = chart + highlight
+        charts.append(full_chart)
 
-    # Combine all charts into a single chart
-    combined_chart = alt.vconcat(*charts).resolve_scale(y='independent')
-
-    return combined_chart
+    if charts:
+        combined_chart = alt.vconcat(*charts).resolve_scale(y='independent')
+        st.altair_chart(combined_chart, use_container_width=True)
+    else:
+        st.info("No valid data to visualize.")

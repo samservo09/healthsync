@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import os
 from components.form import render_form
 from utils.data_processing import save_to_csv, validate_vitals
 from visualizations.line_chart import plot_vital_signs
@@ -10,19 +11,21 @@ st.title("HealthSync - Health Vitals Monitor")
 # Render the input form
 form_data = render_form()
 
-# If the form is submitted
+# When form is submitted
 if st.button("Submit"):
-    # Validate the input data
-    if validate_vitals(form_data):
-        # Save the data to a CSV file
-        save_to_csv(form_data)
-        st.success("Data submitted successfully!")
-    else:
-        st.error("Please check your input values. Some vitals are out of the normal range.")
+    save_to_csv(form_data)
+    st.success("Data submitted successfully!")
+    
 
-# Load the existing data for visualization
-try:
-    data = pd.read_csv("health_vitals.csv")
-    plot_vital_signs(data)
-except FileNotFoundError:
-    st.warning("No data available for visualization. Please submit some health vitals first.")
+
+# Load the data after submission or if file exists
+if st.session_state.get("submitted", False) or "health_vitals.csv" in os.listdir():
+    try:
+        data = pd.read_csv("health_vitals.csv")
+        if not data.empty:
+            plot_vital_signs(data)
+        else:
+            st.warning("No data available for visualization. Please submit some health vitals first.")
+    except FileNotFoundError:
+        st.warning("No data available for visualization. Please submit some health vitals first.")
+

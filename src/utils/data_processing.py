@@ -1,31 +1,40 @@
+import pandas as pd
+import os
+
 def save_to_csv(data, filename='health_vitals.csv'):
-    import pandas as pd
+    """
+    Save the form data to a CSV file. If the file doesn't exist, create it with headers.
+    """
+    df = pd.DataFrame([data])  # Wrap the data in a list to create a DataFrame
+    if not os.path.exists(filename):  # Check if the file exists
+        df.to_csv(filename, mode='w', header=True, index=False)
+    else:
+        df.to_csv(filename, mode='a', header=False, index=False)
 
-    df = pd.DataFrame(data)
-    df.to_csv(filename, mode='a', header=False, index=False)
+def validate_vitals(form_data):
+    """
+    Returns a list of abnormal vitals. If the list is empty, everything is within normal range.
+    """
+    abnormal = []
 
-def validate_vitals(temperature, blood_pressure, blood_sugar, pulse_rate, spo2):
-    valid = True
-    errors = []
+    normal_ranges = {
+        "temperature": (36.1, 37.2),
+        "blood_pressure": (90, 120),
+        "blood_sugar": (70, 140),
+        "pulse_rate": (60, 100),
+        "spo2": (95, 100),
+    }
 
-    if not (36.1 <= temperature <= 37.2):
-        valid = False
-        errors.append("Temperature out of range (36.1 - 37.2 °C)")
-    
-    if not (90 <= blood_pressure[0] <= 120 and 60 <= blood_pressure[1] <= 80):
-        valid = False
-        errors.append("Blood pressure out of range (90/60 - 120/80 mmHg)")
-    
-    if not (70 <= blood_sugar <= 140):
-        valid = False
-        errors.append("Blood sugar out of range (70 - 140 mg/dL)")
-    
-    if not (60 <= pulse_rate <= 100):
-        valid = False
-        errors.append("Pulse rate out of range (60 - 100 bpm)")
-    
-    if not (95 <= spo2 <= 100):
-        valid = False
-        errors.append("SpO2 out of range (95 - 100%)")
+    for vital, (low, high) in normal_ranges.items():
+        value = form_data.get(vital)
 
-    return valid, errors
+        # Try to convert value to float
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            continue  # Skip this vital if it's not a valid number
+
+        if not (low <= value <= high):
+            abnormal.append(f"{vital.replace('_', ' ').title()}: {value}")
+
+    return abnormal
